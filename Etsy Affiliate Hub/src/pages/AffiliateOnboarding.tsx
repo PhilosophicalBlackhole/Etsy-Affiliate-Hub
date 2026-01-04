@@ -1,4 +1,3 @@
-
 /**
  * @file Affiliate onboarding page with step-by-step guidance and an application form.
  */
@@ -24,6 +23,27 @@ interface OnboardingFormState {
 }
 
 /**
+ * Response shape returned by the Google Apps Script onboarding endpoint.
+ */
+interface OnboardingResponse {
+  /** Whether the submission was recorded successfully. */
+  ok: boolean
+  /** Optional human-readable success or error message. */
+  message?: string
+  /** Optional error description when ok is false. */
+  error?: string
+  /** Optional ISO timestamp of when the submission was recorded. */
+  submittedAt?: string
+}
+
+/**
+ * Endpoint URL for logging onboarding submissions to Google Sheets.
+ * This should match the deployed Apps Script Web App "exec" URL.
+ */
+const ONBOARDING_ENDPOINT =
+  'https://script.google.com/macros/s/AKfycbw37YPofCR7fjJMfyOk4XscBLHkaTIOEQf4h4nwN5THlmL-Ey9qckF9ouyIPwiox5Nk/exec'
+
+/**
  * Step description for the onboarding checklist.
  */
 interface OnboardingStep {
@@ -35,6 +55,7 @@ interface OnboardingStep {
 
 /**
  * Step-by-step affiliate onboarding content and application form.
+ * Submits affiliate profile details to a Google Sheets-backed endpoint via Google Apps Script.
  */
 export default function AffiliateOnboardingPage() {
   const [form, setForm] = useState<OnboardingFormState>({
@@ -45,6 +66,8 @@ export default function AffiliateOnboardingPage() {
     niches: ''
   })
   const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const steps: OnboardingStep[] = [
     {
@@ -65,16 +88,61 @@ export default function AffiliateOnboardingPage() {
     }
   ]
 
-  const handleSubmit = (event: React.FormEvent) => {
+  /**
+   * Handles submit events for the onboarding form.
+   * Sends data to the Google Apps Script endpoint and manages loading / error / success UI state.
+   */
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    setSubmitted(true)
-    setForm({
-      name: '',
-      email: '',
-      primaryChannel: '',
-      monthlyReach: '',
-      niches: ''
-    })
+    setError(null)
+    setSubmitted(false)
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch(ONBOARDING_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(form)
+      })
+
+      // Attempt to parse the JSON payload returned by the script.
+      let data: OnboardingResponse | null = null
+      try {
+        data = (await response.json()) as OnboardingResponse
+      } catch {
+        data = null
+      }
+
+      const okFromBody = data?.ok ?? false
+
+      if (!response.ok || !okFromBody) {
+        const message =
+          data?.error ||
+          data?.message ||
+          'There was a problem recording your submission. Please try again.'
+        setError(message)
+        return
+      }
+
+      // Success: clear form and show confirmation message.
+      setSubmitted(true)
+      setForm({
+        name: '',
+        email: '',
+        primaryChannel: '',
+        monthlyReach: '',
+        niches: ''
+      })
+    } catch (err) {
+      // Network or unexpected error.
+      setError(
+        'Network error while submitting. Please check your connection and try again.'
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -229,21 +297,31 @@ export default function AffiliateOnboardingPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <button
                 type="submit"
-                className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                disabled={isSubmitting}
+                className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
               >
-                Submit onboarding profile
+                {isSubmitting ? 'Submitting…' : 'Submit onboarding profile'}
               </button>
               <p className="text-xs text-slate-500">
                 You&apos;ll receive a confirmation by email along with next steps and
                 recommended creators.
               </p>
             </div>
-            {submitted && (
-              <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                Thanks — your onboarding details have been recorded. You can start
-                browsing creators immediately while we review your profile.
-              </p>
-            )}
+
+            {/* Status messages */}
+            <div className="space-y-2 pt-1" aria-live="polite">
+              {error && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">
+                  {error}
+                </p>
+              )}
+              {submitted && !error && (
+                <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                  Thanks — your onboarding details have been recorded. You can start
+                  browsing creators immediately while we review your profile.
+                </p>
+              )}
+            </div>
           </form>
         </div>
       </div>
