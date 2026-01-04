@@ -41,7 +41,7 @@ interface OnboardingResponse {
  * This should match the deployed Apps Script Web App "exec" URL.
  */
 const ONBOARDING_ENDPOINT =
-  'https://script.google.com/macros/s/AKfycbw37YPofCR7fjJMfyOk4XscBLHkaTIOEQf4h4nwN5THlmL-Ey9qckF9ouyIPwiox5Nk/exec'
+  'https://script.google.com/u/0/home/projects/1OSwI5luBVZgPkO0QAPwIi_qifLxPBE2MESp2YLUzVfz8TmY_BPKePooL/executions'
 
 /**
  * Step description for the onboarding checklist.
